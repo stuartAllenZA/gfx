@@ -6,13 +6,14 @@
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
+#include <iostream>
+#include <vector>
+#include <string>
 
-#define GLEW_STATIC
-//#include <GL/glew.h>
-//#include <GL/gl.h>
-//#include <GL/glew.h>
-
-#define GLFW_INCLUDE_GLU
+//#define GLEW_STATIC
+//#define GLFW_DLL
+//#define GLFW_INCLUDE_GLU
+#include <GL/glew.h>
 #include <GLFW/glfw3.h>
 
 #include <cstdio>
@@ -26,6 +27,7 @@ void controls(GLFWwindow* window, int key, int scancode, int action, int mods)
 
 GLFWwindow* initWindow(const int resX, const int resY)
 {
+	glewExperimental = true;
 	if(!glfwInit())
 	{
 		fprintf(stderr, "Failed to initialize GLFW\n");
@@ -57,49 +59,81 @@ GLFWwindow* initWindow(const int resX, const int resY)
 	return window;
 }
 
-void drawCube()
+void display( GLFWwindow* window, char *file )
 {
-	GLfloat vertices[] =
-	{
-		-1, -1,  1,   -1,  1,  1,   -1,  1, -1,
-		1, -1, -1,    1, -1,  1,    1,  1,  1,    1,  1, -1,
-		-1, -1, -1,   -1, -1,  1,    1, -1,  1,    1, -1, -1,
-		-1,  1, -1,   -1,  4,  1,    1,  1,  1,    1,  1, -1,
-		-1, -1, -1,   -1,  1, -1,    1,  1, -1,    1, -1, -1,
-		-1, -1,  1,   -1,  1,  1,    1,  1,  1,    1, -1,  1
+	std::vector<float>			verticeVector;
+	std::ifstream infile(file);
+	std::string a, b, c;
+	float		af, bf, cf;
+
+	while (infile >> a >> b >> c) {
+		af = std::stof(a);
+		bf = std::stof(b); 
+		cf = std::stof(c);
+		verticeVector.push_back(af);
+		verticeVector.push_back(bf);
+		verticeVector.push_back(cf);
+	}
+	
+
+//	GLfloat *points = &verticeVector[0];
+	float points[] = {
+		0.0f,  0.5f,  0.0f,
+		0.5f, -0.5f,  0.0f,
+		-0.5f, -0.5f,  0.0f
 	};
+	std::cout << "points created\n";
 
-	GLfloat colors[] =
-	{
-		0, 0, 0,   0, 0, 1,   0, 1, 1,   0, 1, 0,
-		1, 0, 0,   1, 0, 1,   1, 1, 1,   1, 1, 0,
-		0, 0, 0,   0, 0, 1,   1, 0, 1,   1, 0, 0,
-		0, 1, 0,   0, 1, 1,   1, 1, 1,   1, 1, 0,
-		0, 0, 0,   0, 1, 0,   1, 1, 0,   1, 0, 0,
-		0, 0, 1,   0, 1, 1,   1, 1, 1,   1, 0, 1
-	};
+	GLuint vbo = 0;
+	std::cout << "vbo init\n"; 
+	glGenBuffers(1, &vbo);
+	std::cout << "buffer gen\n"; 
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	std::cout << "buffer bind\n"; 
+	//glBufferData(GL_ARRAY_BUFFER, verticeVector.size() * sizeof(float), points, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, 9 * sizeof(float), points, GL_STATIC_DRAW);
+	std::cout << "buffer data\n"; 
 
-	static float alpha = 0;
-	//attempt to rotate cube
-	glRotatef(alpha, 0, 1, 0);
+	std::cout
+		<< "HERE: size = "
+		<< verticeVector.size()
+		<< std::endl
+		;
 
-	/* We have a color array and a vertex array */
-	glEnableClientState(GL_VERTEX_ARRAY);
-	glEnableClientState(GL_COLOR_ARRAY);
-	glVertexPointer(3, GL_FLOAT, 0, vertices);
-	glColorPointer(3, GL_FLOAT, 0, colors);
+	GLuint vao = 0;
+	glGenVertexArrays(1, &vao);
+	glBindVertexArray(vao);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, vbo);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+	// shader
 
-	/* Send data : 24 vertices */
-	glDrawArrays(GL_QUADS, 0, 23);
+	const char* vertex_shader =
+		"#version 400\n"
+		"in vec3 vp;"
+		"void main() {"
+		"  gl_Position = vec4(vp, 1.0);"
+		"}";
 
-	/* Cleanup states */
-	glDisableClientState(GL_COLOR_ARRAY);
-	glDisableClientState(GL_VERTEX_ARRAY);
-	alpha += 1;
-}
+	const char* fragment_shader =
+		"#version 400\n"
+		"out vec4 frag_colour;"
+		"void main() {"
+		"  frag_colour = vec4(0.5, 0.0, 0.5, 1.0);"
+		"}";
 
-void display( GLFWwindow* window )
-{
+	GLuint vs = glCreateShader(GL_VERTEX_SHADER);
+	glShaderSource(vs, 1, &vertex_shader, NULL);
+	glCompileShader(vs);
+	GLuint fs = glCreateShader(GL_FRAGMENT_SHADER);
+	glShaderSource(fs, 1, &fragment_shader, NULL);
+	glCompileShader(fs);
+
+	GLuint shader_programme = glCreateProgram();
+	glAttachShader(shader_programme, fs);
+	glAttachShader(shader_programme, vs);
+	glLinkProgram(shader_programme);
+
 	while(!glfwWindowShouldClose(window))
 	{
 		// Scale to window size
@@ -109,21 +143,23 @@ void display( GLFWwindow* window )
 
 		// Draw stuff
 		glClearColor(0.0, 0.8, 0.3, 1.0);
+
+//		glMatrixMode(GL_PROJECTION_MATRIX);
+//		glLoadIdentity();
+//		gluPerspective( 60, (double)windowWidth / (double)windowHeight, 0.1, 100 );
+//
+//		glMatrixMode(GL_MODELVIEW_MATRIX);
+//		glTranslatef(0,0,-5);
+
+		// wipe the drawing surface clear
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		glMatrixMode(GL_PROJECTION_MATRIX);
-		glLoadIdentity();
-		gluPerspective( 60, (double)windowWidth / (double)windowHeight, 0.1, 100 );
-
-		glMatrixMode(GL_MODELVIEW_MATRIX);
-		glTranslatef(0,0,-5);
-
-		drawCube();
-
-		// Update Screen
+		glUseProgram(shader_programme);
+		glBindVertexArray(vao);
+		// draw points 0-3 from the currently bound VAO with current in-use shader
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		// put the stuff we've been drawing onto the display
 		glfwSwapBuffers(window);
-
-		// Check for any input, or window movement
+		// update other events like input handling 
 		glfwPollEvents();
 	}
 }
@@ -131,9 +167,14 @@ void display( GLFWwindow* window )
 int main(int argc, char** argv)
 {
 	GLFWwindow* window = initWindow(1024, 620);
+	glewInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	if( NULL != window )
 	{
-		display( window );
+		display( window, argv[1] );
 	}
 	glfwDestroyWindow(window);
 	glfwTerminate();
